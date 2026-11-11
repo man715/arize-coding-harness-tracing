@@ -180,6 +180,7 @@ Tell the user:
 - Shim path registered in the `extensions` array of `~/.omp/agent/settings.json` — omp requires explicit registration (no auto-discovery)
 - Spans are sent directly to the backend from the handler — no background process needed
 - After saving, open a new omp session and traces will appear in their Phoenix UI or Arize AX dashboard under the project name
+- Model reasoning is captured when thinking logging is on (`logging.thinking` in the config or `ARIZE_LOG_THINKING=true`; with neither set it follows prompt logging). It lands as the `llm.reasoning` attribute and as a `reasoning` message content, which is what renders a collapsible **Reasoning** row inside each LLM span's Output panel
 - Mention `ARIZE_DRY_RUN=true` to test without sending data (set as env var before launching omp)
 - Mention `ARIZE_VERBOSE=true` for debug output
 - Errors and handler stderr are always written to `~/.arize/harness/logs/omp.log` (the adapter redirects Python stderr there via `ARIZE_LOG_FILE`); set `ARIZE_VERBOSE=true` in the shell before launching omp to also capture routine handler activity (event dispatch, span emits, state transitions)
@@ -200,8 +201,8 @@ Each trace covers one **agent run** (one user prompt → the agent's internal tu
 
 | Span | Kind | Description |
 |------|------|-------------|
-| `Turn` | CHAIN | Root span. `input.value` is the user prompt (from `before_agent_start`); `output.value` is the final assistant message's text. One per agent run. |
-| `LLM: <model>` | LLM | Child of `Turn`. One per `turn_end` (one per model call in the loop). Carries `llm.model_name`, `llm.provider`, prompt/completion/reasoning token counts, cache read/write tokens, and `llm.cost`. omp surfaces token usage inline on the assistant message, so it **is** captured. |
+| `Turn` | CHAIN | Root span. `input.value` is the user prompt (from `before_agent_start`); `output.value` is the final assistant message's text (or its reasoning text when the run produced no visible text). One per agent run. |
+| `LLM: <model>` | LLM | Child of `Turn`. One per `turn_end` (one per model call in the loop). Carries `llm.model_name`, `llm.provider`, prompt/completion/reasoning token counts, cache read/write tokens, `llm.cost`, `llm.reasoning` (the assistant's `thinking` content items, queryable as an attribute), and `llm.output_messages` — the turn's thinking and text parts as message contents, which is what renders the collapsible **Reasoning** row in the span's Output panel. omp surfaces token usage inline on the assistant message, so it **is** captured. |
 | `<tool>` | TOOL | Child of `Turn`. One per `ToolResultMessage` in a `turn_end`, paired with its originating `ToolCall` by id. Records `tool.name`, redacted input args + output, and tool-specific attributes; errors are recorded with span status. |
 
 ## Troubleshoot
@@ -215,6 +216,7 @@ Common issues and fixes for omp:
 | Handler entry point missing | The shim spawns the handler by absolute path; verify the binary exists at `~/.arize/harness/venv/bin/arize-hook-omp` (or `~/.arize/harness/venv/Scripts/arize-hook-omp.exe` on Windows). Rerun `./install.sh omp` to reinstall the venv entry point. |
 | Missing LLM or tool spans | Spans emit on `turn_end` (one LLM span per model call, one TOOL span per tool result). If a turn hasn't completed yet, its spans won't appear until the event fires. Wait for the agent run to finish (`agent_end`). |
 | Trace missing the final answer | `output.value` on the `Turn` span comes from the final assistant message. Confirm the run reached `agent_end`. |
+| No **Reasoning** row on an LLM span | Reasoning text exports (as `llm.reasoning` and as a `reasoning` message content) only when thinking logging is on: `logging.thinking` in `~/.arize/harness/config.json` or `ARIZE_LOG_THINKING=true`. With neither set it follows prompt logging, so hiding prompts hides reasoning. The model must also have emitted thinking for that call. Separately, the `llm.token_count.completion_details.reasoning` **count** appears only when the provider reports it via `usage.completion_tokens_details.reasoning_tokens` — SGLang returns it top-level and omp drops it, so a missing count with the text present is expected, not a bug. |
 | Phoenix unreachable | Verify Phoenix is running: `curl -sf <endpoint>/v1/traces` |
 | Want to test without sending | Set `ARIZE_DRY_RUN=true` env var before launching omp |
 | Want verbose logging | Set `ARIZE_VERBOSE=true` env var before launching omp |

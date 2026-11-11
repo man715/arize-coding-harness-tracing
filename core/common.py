@@ -259,6 +259,14 @@ class _Env:
     def log_tool_content(self) -> bool:
         return self._resolve_log_flag("ARIZE_LOG_TOOL_CONTENT", "tool_content", True)
 
+    @property
+    def log_thinking(self) -> bool:
+        """Reasoning/thinking text export. Defaults to the prompt-logging flag:
+        reasoning is model-generated prompt-adjacent text, so turning prompt
+        logging off hides it too unless ``logging.thinking`` / ``ARIZE_LOG_THINKING``
+        says otherwise."""
+        return self._resolve_log_flag("ARIZE_LOG_THINKING", "thinking", self.log_prompts)
+
 
 env = _Env()
 

@@ -8,11 +8,13 @@ One trace per **agent run** — one user prompt → the agent's internal turn/to
 
 | Span | Kind | Notes |
 |------|------|-------|
-| `Turn` | CHAIN | Root span. `input.value` is the user prompt (from `before_agent_start`); `output.value` is the final assistant message's text. One per agent run. |
-| `LLM: <model>` | LLM | Child of `Turn`. One per `turn_end` (one per model call in the loop). Carries `llm.model_name`, `llm.provider`, prompt/completion/reasoning token counts, cache read/write tokens, and `llm.cost`. |
+| `Turn` | CHAIN | Root span. `input.value` is the user prompt (from `before_agent_start`); `output.value` is the final assistant message's text (or its reasoning text when the run produced no visible text). One per agent run. |
+| `LLM: <model>` | LLM | Child of `Turn`. One per `turn_end` (one per model call in the loop). Carries `llm.model_name`, `llm.provider`, prompt/completion/reasoning token counts, cache read/write tokens, `llm.cost`, `llm.reasoning` (the assistant's `thinking` content items, queryable as an attribute), and `llm.output_messages` — the turn's thinking and text parts as OpenInference message contents. When a turn has no visible text (thinking + tool calls only) `output.value` also falls back to the reasoning text. |
 | `<tool>` | TOOL | Child of `Turn`. One per `ToolResultMessage` in a `turn_end`, paired with its originating `ToolCall` by id. Records `tool.name`, redacted input args + output, and tool-specific attributes. Errors are recorded with span status. |
 
-Token usage **is** captured — omp surfaces cumulative `usage` (input/output/reasoning tokens, cache read/write, and cost) inline on each assistant message, unlike vendors that withhold it from local surfaces.
+Reasoning **text** is always available, and it is exported twice: as the `llm.reasoning` attribute (queryable/filterable), and as `message_content` items of type `reasoning` inside `llm.output_messages`, in omp's own block order — ahead of the visible answer. The message form is what makes the LLM span's Output panel show a collapsible **Reasoning** row: Phoenix keys that row on `message_content.type == "reasoning"`, and an ordinary attribute has no slot there. `thinkingSignature` (an opaque provider token, not text) is never exported. Both copies are gated by `logging.thinking` / `ARIZE_LOG_THINKING`, which defaults to the prompt-logging flag. Reasoning **token counts** depend on the provider: the count reaches a span only as `usage.reasoningTokens`, which omp populates from `usage.completion_tokens_details.reasoning_tokens` on OpenAI-compatible responses. Providers that report the count elsewhere — e.g. SGLang returns `usage.reasoning_tokens` as a top-level member — lose it inside omp before the hook sees the message, so the `llm.token_count.completion_details.reasoning` attribute is simply omitted while the reasoning text still exports.
+
+Token usage **is** captured — omp surfaces cumulative `usage` (input/output tokens, cache read/write, and cost) inline on each assistant message, unlike vendors that withhold it from local surfaces.
 
 Timestamps come from omp's own millisecond clocks where present (`AssistantMessage.timestamp` / `duration`, `turn_start.timestamp`, `ToolResultMessage.timestamp`), falling back to wall-clock time on the tracing process when absent.
 
@@ -122,6 +124,7 @@ Run any omp session as you normally would. omp loads the registered extension on
 
 - Errors and handler stderr land in `~/.arize/harness/logs/omp.log` always (the adapter redirects Python stderr there via `ARIZE_LOG_FILE`); set `export ARIZE_VERBOSE=true` before launching omp to also see routine handler activity (event dispatch, span emits, state transitions).
 - Confirm spans appear in your configured project in Arize AX or Phoenix.
+- Open an `LLM: <model>` span: its Output panel lists the turn's content parts, with a collapsible **Reasoning** row holding the thinking text (only when the model emitted thinking and prompt/thinking logging is on).
 - Set `ARIZE_TRACE_DEBUG=true` to dump the raw event payloads under `~/.arize/harness/state/debug/` (files are named `omp_before_agent_start_<ts>.json`, `omp_turn_end_<ts>.json`, `omp_agent_end_<ts>.json`, `omp_session_shutdown_<ts>.json`) for inspection.
 
 See the [main README's Environment variables section](../../README.md#environment-variables) for the full list of runtime overrides (`ARIZE_TRACE_ENABLED`, `ARIZE_DRY_RUN`, `ARIZE_USER_ID`, `ARIZE_PROJECT_NAME`, `ARIZE_VERBOSE`, `ARIZE_TRACE_DEBUG`, etc.).

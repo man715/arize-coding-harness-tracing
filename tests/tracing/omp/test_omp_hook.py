@@ -22,6 +22,7 @@ Span tree (one trace per agent run):
 
 Tests are modelled after tests/tracing/opencode/test_opencode_hook.py.
 """
+
 from __future__ import annotations
 
 import io
@@ -41,14 +42,18 @@ os.environ["ARIZE_DISABLE_FORK"] = "true"
 # Import handlers (this import is what fails first in pure-TDD: the module does
 # not exist yet). The remaining tests then exercise its surface.
 from tracing.omp.hooks.handlers import (  # noqa: E402
+    _assistant_output,
     _assistant_text,
+    _content_parts,
     _handle_agent_end,
     _handle_before_agent_start,
     _handle_session_shutdown,
     _handle_turn_end,
+    _output_message_attrs,
     _read_stdin,
     _send_span_async,
     _text_of_content,
+    _thinking_text,
     _tool_calls,
     _user_prompt,
     main,
@@ -149,7 +154,7 @@ class TestHelpers:
         message = {
             "content": [
                 {"type": "text", "text": "Hello "},
-                {"type": "thinking", "text": "SECRET"},
+                {"type": "thinking", "thinking": "SECRET", "thinkingSignature": "s"},
                 {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}},
                 {"type": "text", "text": "world"},
             ]
@@ -163,6 +168,103 @@ class TestHelpers:
     def test_assistant_text_handles_missing_content(self):
         assert _assistant_text({}) == ""
         assert _assistant_text({"content": None}) == ""
+
+    def test_thinking_text_joins_thinking_items_only(self):
+        """omp's real block shape is {type, thinking, thinkingSignature}; the
+        signature is an opaque token and must never be concatenated."""
+        message = {
+            "content": [
+                {"type": "text", "text": "visible answer"},
+                {"type": "thinking", "thinking": "step one ", "thinkingSignature": "sig_1"},
+                {"type": "thinking", "thinking": "step two"},
+                {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}},
+            ]
+        }
+        assert _thinking_text(message) == "step one step two"
+
+    def test_thinking_text_accepts_text_key_fallback(self):
+        assert _thinking_text({"content": [{"type": "thinking", "text": "alt body"}]}) == "alt body"
+
+    def test_thinking_text_empty_without_thinking_items(self):
+        assert _thinking_text({"content": [{"type": "text", "text": "hi"}]}) == ""
+        assert _thinking_text({}) == ""
+        assert _thinking_text(None) == ""
+
+    def test_assistant_output_prefers_visible_text_over_thinking(self):
+        message = {
+            "content": [
+                {"type": "thinking", "thinking": "why"},
+                {"type": "text", "text": "what"},
+            ]
+        }
+        assert _assistant_output(message) == "what"
+
+    def test_assistant_output_falls_back_to_thinking(self):
+        """A thinking + tool-call turn has no visible text; output.value would be
+        blank, so reasoning is used instead."""
+        message = {
+            "content": [
+                {"type": "thinking", "thinking": "why"},
+                {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}},
+            ]
+        }
+        assert _assistant_output(message) == "why"
+
+    def test_assistant_output_ignores_whitespace_only_text(self):
+        message = {
+            "content": [
+                {"type": "text", "text": "\n\n"},
+                {"type": "thinking", "thinking": "why"},
+            ]
+        }
+        assert _assistant_output(message) == "why"
+
+    def test_content_parts_maps_types_in_message_order(self):
+        message = {
+            "content": [
+                {"type": "thinking", "thinking": "plan ", "thinkingSignature": "sig"},
+                {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}},
+                {"type": "text", "text": "done"},
+            ]
+        }
+        assert _content_parts(message) == [("reasoning", "plan "), ("text", "done")]
+
+    def test_content_parts_drops_empty_and_unknown_items(self):
+        message = {
+            "content": [
+                {"type": "thinking", "thinking": ""},
+                {"type": "text"},
+                {"type": "image"},
+                "not-a-dict",
+            ]
+        }
+        assert _content_parts(message) == []
+        assert _content_parts(None) == []
+        assert _content_parts({"content": None}) == []
+
+    def test_output_message_attrs_flattens_indexed_openinference_keys(self):
+        """The rendered Reasoning row requires message_content.type == "reasoning"
+        under an indexed llm.output_messages prefix."""
+        attrs = _output_message_attrs(
+            {
+                "content": [
+                    {"type": "thinking", "thinking": "the plan", "thinkingSignature": "sig"},
+                    {"type": "toolCall", "id": "c1", "name": "bash", "arguments": {}},
+                    {"type": "text", "text": "the answer"},
+                ]
+            }
+        )
+        assert attrs == {
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+            "llm.output_messages.0.message.contents.0.message_content.text": "the plan",
+            "llm.output_messages.0.message.contents.1.message_content.type": "text",
+            "llm.output_messages.0.message.contents.1.message_content.text": "the answer",
+        }
+
+    def test_output_message_attrs_empty_when_no_speakable_content(self):
+        assert _output_message_attrs({"content": [{"type": "toolCall", "id": "c1", "name": "x"}]}) == {}
+        assert _output_message_attrs({}) == {}
 
     def test_user_prompt_returns_string_as_is(self):
         assert _user_prompt("do the thing") == "do the thing"
@@ -363,8 +465,50 @@ class TestTurnEndLLMSpan:
         attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
         # input.value = the turn prompt (from before_agent_start)
         assert attrs["input.value"]["stringValue"] == "list files and edit main.py"
-        # output.value = the assistant text (thinking/toolCall items skipped)
+        # output.value = the assistant text (thinking/toolCall items never mix in)
         assert attrs["output.value"]["stringValue"] == "I'll list files then edit."
+
+    def test_llm_reasoning_attr_carries_thinking_text(self, mock_resolve, mock_ensure, state, captured_spans):
+        """The thinking items are also exported on their own attribute, for
+        attribute-level search and filtering."""
+        _run_basic_turn(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["llm.reasoning"]["stringValue"] == "private reasoning"
+
+    def test_llm_span_carries_renderable_output_message_parts(self, mock_resolve, mock_ensure, state, captured_spans):
+        """Phoenix renders a message_content of type "reasoning" as a collapsible
+        Reasoning row; the indexed attribute shape is the contract."""
+        _run_basic_turn(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["llm.output_messages.0.message.role"]["stringValue"] == "assistant"
+        # Fixture order is text, then thinking, then a tool call (not exported here).
+        assert attrs["llm.output_messages.0.message.contents.0.message_content.type"]["stringValue"] == "text"
+        assert attrs["llm.output_messages.0.message.contents.0.message_content.text"]["stringValue"] == (
+            "I'll list files then edit."
+        )
+        assert attrs["llm.output_messages.0.message.contents.1.message_content.type"]["stringValue"] == "reasoning"
+        assert attrs["llm.output_messages.0.message.contents.1.message_content.text"]["stringValue"] == (
+            "private reasoning"
+        )
+        assert not any(key.startswith("llm.output_messages.0.message.contents.2") for key in attrs)
+
+    def test_llm_omits_reasoning_when_no_thinking_items(self, mock_resolve, mock_ensure, state, captured_spans):
+        _handle_turn_end(
+            {
+                "type": "turn_end",
+                "sessionId": "s_basic",
+                "turnIndex": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "plain answer"}],
+                    "model": "m",
+                    "usage": {},
+                },
+                "toolResults": [],
+            }
+        )
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert "llm.reasoning" not in attrs
 
     def test_llm_common_attrs(self, mock_resolve, mock_ensure, state, captured_spans):
         _run_basic_turn(state)
@@ -398,6 +542,124 @@ class TestTurnEndLLMSpan:
         """The last turn's assistant text is stashed so agent_end can report it."""
         _run_basic_turn(state)
         assert state.get("current_final_output") == "I'll list files then edit."
+
+
+class TestTurnEndThinkingOnly:
+    """A thinking + tool-call turn has no visible text: reasoning must still reach
+    the backend, both as `llm.reasoning` and as the rendered output value."""
+
+    @staticmethod
+    def _run(state):
+        _handle_before_agent_start(_load_fixture("before_agent_start.json"))
+        _handle_turn_end(_load_fixture("turn_end_thinking_only.json"))
+
+    def test_reasoning_attr_carries_thinking_text(self, mock_resolve, mock_ensure, state, captured_spans):
+        self._run(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["llm.reasoning"]["stringValue"] == "I should read the file before editing it."
+
+    def test_output_value_falls_back_to_reasoning(self, mock_resolve, mock_ensure, state, captured_spans):
+        self._run(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["output.value"]["stringValue"] == "I should read the file before editing it."
+
+    def test_reasoning_is_the_only_output_message_part(self, mock_resolve, mock_ensure, state, captured_spans):
+        """The panel shows one Reasoning row: the tool call is a TOOL child span,
+        not a message content item."""
+        self._run(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["llm.output_messages.0.message.contents.0.message_content.type"]["stringValue"] == "reasoning"
+        assert attrs["llm.output_messages.0.message.contents.0.message_content.text"]["stringValue"] == (
+            "I should read the file before editing it."
+        )
+        assert not any(key.startswith("llm.output_messages.0.message.contents.1") for key in attrs)
+
+    def test_reasoning_token_count_omitted_when_provider_omits_it(
+        self, mock_resolve, mock_ensure, state, captured_spans
+    ):
+        """sglang reports reasoning tokens outside omp's normalized usage, so
+        omp never sets usage.reasoningTokens: the count is absent while the
+        reasoning text still ships."""
+        self._run(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert "llm.token_count.completion_details.reasoning" not in attrs
+        assert attrs["llm.token_count.completion"]["intValue"] == 60
+        assert attrs["llm.reasoning"]["stringValue"] != ""
+
+    def test_stashed_final_output_uses_reasoning(self, mock_resolve, mock_ensure, state, captured_spans):
+        self._run(state)
+        assert state.get("current_final_output") == "I should read the file before editing it."
+
+    def test_whitespace_only_visible_text_falls_back_to_reasoning(
+        self, mock_resolve, mock_ensure, state, captured_spans
+    ):
+        """omp's usual thinking-then-tool-call shape carries a newline-only visible
+        message; a blank output.value would hide the span in the UI."""
+        _handle_before_agent_start(_load_fixture("before_agent_start.json"))
+        _handle_turn_end(
+            {
+                "type": "turn_end",
+                "sessionId": "s_ws",
+                "turnIndex": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "\n\n"},
+                        {"type": "thinking", "thinking": "checking the config first"},
+                        {"type": "toolCall", "id": "c1", "name": "read", "arguments": {"path": "/a"}},
+                    ],
+                    "model": "m",
+                    "usage": {"input": 10, "output": 4},
+                },
+                "toolResults": [],
+            }
+        )
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["output.value"]["stringValue"] == "checking the config first"
+        assert attrs["llm.reasoning"]["stringValue"] == "checking the config first"
+
+    def test_output_keeps_visible_text_when_only_whitespace_and_no_reasoning(
+        self, mock_resolve, mock_ensure, state, captured_spans
+    ):
+        """No reasoning to fall back to: export the visible text as-is."""
+        _handle_before_agent_start(_load_fixture("before_agent_start.json"))
+        _handle_turn_end(
+            {
+                "type": "turn_end",
+                "sessionId": "s_ws2",
+                "turnIndex": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "\n\n"}],
+                    "model": "m",
+                    "usage": {"input": 10, "output": 4},
+                },
+                "toolResults": [],
+            }
+        )
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["output.value"]["stringValue"] == "\n\n"
+        assert "llm.reasoning" not in attrs
+
+    def test_agent_end_reports_reasoning_when_no_visible_text(self, mock_resolve, mock_ensure, state, captured_spans):
+        self._run(state)
+        _handle_agent_end(
+            {
+                "type": "agent_end",
+                "sessionId": "s_thinking_only",
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "thinking", "thinking": "final reasoning only", "thinkingSignature": "s2"},
+                            {"type": "toolCall", "id": "c1", "name": "read", "arguments": {}},
+                        ],
+                    }
+                ],
+            }
+        )
+        chain = _by_kind(captured_spans, "CHAIN")[0]
+        assert _get_attrs(chain)["output.value"]["stringValue"] == "final reasoning only"
 
 
 class TestTurnEndToolSpans:
@@ -724,6 +986,37 @@ class TestRedaction:
         cattrs = _get_attrs(chain)
         assert "redacted" in cattrs["input.value"]["stringValue"]
         assert "redacted" in cattrs["output.value"]["stringValue"]
+
+    def test_redacts_reasoning_when_log_thinking_false(
+        self, mock_resolve, mock_ensure, state, captured_spans, monkeypatch
+    ):
+        monkeypatch.setenv("ARIZE_LOG_THINKING", "false")
+        _run_basic_turn(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert attrs["llm.reasoning"]["stringValue"] == "<redacted (17 chars)>"
+        # Visible output is governed by the prompt flag, not the thinking flag.
+        assert attrs["output.value"]["stringValue"] == "I'll list files then edit."
+
+    def test_reasoning_follows_prompt_flag_when_thinking_flag_unset(
+        self, mock_resolve, mock_ensure, state, captured_spans, monkeypatch
+    ):
+        """No `logging.thinking` key and no ARIZE_LOG_THINKING: hiding prompts
+        hides reasoning too."""
+        monkeypatch.setenv("ARIZE_LOG_PROMPTS", "false")
+        _run_basic_turn(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        assert "redacted" in attrs["llm.reasoning"]["stringValue"]
+
+    def test_redacts_reasoning_output_message_part_but_not_visible_text(
+        self, mock_resolve, mock_ensure, state, captured_spans, monkeypatch
+    ):
+        monkeypatch.setenv("ARIZE_LOG_THINKING", "false")
+        _run_basic_turn(state)
+        attrs = _get_attrs(_by_kind(captured_spans, "LLM")[0])
+        visible = attrs["llm.output_messages.0.message.contents.0.message_content.text"]["stringValue"]
+        reasoning = attrs["llm.output_messages.0.message.contents.1.message_content.text"]["stringValue"]
+        assert visible == "I'll list files then edit."
+        assert reasoning == "<redacted (17 chars)>"
 
     def test_redacts_tool_content_when_log_tool_content_false(
         self, mock_resolve, mock_ensure, state, captured_spans, monkeypatch

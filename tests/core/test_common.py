@@ -935,12 +935,17 @@ class TestEnvConfigProperties:
 
 
 class TestLoggingFlagPrecedence:
-    """env var > config.json `logging` > default for log_prompts/tool_details/tool_content."""
+    """env var > config.json `logging` > default for log_prompts/tool_details/tool_content/thinking."""
 
     @pytest.fixture(autouse=True)
     def _fresh_env(self, monkeypatch):
         # Clear any inherited env values so each test starts from a clean slate.
-        for key in ("ARIZE_LOG_PROMPTS", "ARIZE_LOG_TOOL_DETAILS", "ARIZE_LOG_TOOL_CONTENT"):
+        for key in (
+            "ARIZE_LOG_PROMPTS",
+            "ARIZE_LOG_TOOL_DETAILS",
+            "ARIZE_LOG_TOOL_CONTENT",
+            "ARIZE_LOG_THINKING",
+        ):
             monkeypatch.delenv(key, raising=False)
         # Reset the cached_property between cases.
         from core.common import env as _env
@@ -987,6 +992,23 @@ class TestLoggingFlagPrecedence:
         assert env.log_prompts is False
         assert env.log_tool_details is True
         assert env.log_tool_content is True
+
+    def test_thinking_defaults_to_prompt_flag(self, monkeypatch):
+        """Thinking is prompt-adjacent text: with no `thinking` key it follows prompts."""
+        self._patch_config(monkeypatch, {"prompts": False})
+        assert env.log_thinking is False
+        self._patch_config(monkeypatch, {"prompts": True})
+        assert env.log_thinking is True
+
+    def test_thinking_config_overrides_prompt_flag(self, monkeypatch):
+        self._patch_config(monkeypatch, {"prompts": False, "thinking": True})
+        assert env.log_prompts is False
+        assert env.log_thinking is True
+
+    def test_thinking_env_overrides_config(self, monkeypatch):
+        self._patch_config(monkeypatch, {"thinking": True})
+        monkeypatch.setenv("ARIZE_LOG_THINKING", "false")
+        assert env.log_thinking is False
 
 
 # ── send_span tests ──────────────────────────────────────────────────────

@@ -263,6 +263,7 @@ Most settings live in `.arize/harness/config.json`, but a small set of env vars 
 | `ARIZE_PROJECT_NAME` | per-harness | Overrides `harnesses.<name>.project_name` from `config.json` for a single session. **Arize backend only** — ignored on the Phoenix backend (use `PHOENIX_PROJECT` there). |
 | `ARIZE_LOG_FILE` | per-harness | Path the harness writes its log to. Adapters default to `~/.arize/harness/logs/<harness>.log`. When this is unset, an `arize-harness` error that names no known harness is logged to `~/.arize/harness/logs/arize-harness.log`. |
 | `ARIZE_TRACE_DEBUG` | `false` | Dump raw hook payloads as JSON under `~/.arize/harness/state/<harness>/debug/`. Codex hooks use this for span-tree inspection. |
+| `ARIZE_LOG_THINKING` | prompt-logging flag | Capture the model's reasoning/`thinking` text (omp exports it as `llm.reasoning` and as a `reasoning` message content under `llm.output_messages`, which is what renders the Reasoning row in a span's Output panel). Overrides `logging.thinking` in `config.json`; unset follows `ARIZE_LOG_PROMPTS`, so hiding prompts hides reasoning. Devin and Antigravity export `llm.reasoning` too, gated on prompt logging only. |
 | `OTEL_RESOURCE_ATTRIBUTES` | — | Standard OTel attribute string (`team=payments,environment=prod`) added to every span. Overrides `config.json` `attributes`/`harnesses.<name>.attributes` on key collision; set per-harness by placing it in that harness's settings env block. |
 
 **Backend overrides** (set if you want env to take priority over `config.json` for a single run):

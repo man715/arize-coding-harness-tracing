@@ -98,17 +98,79 @@ def _send_span_async(span_dict: dict) -> None:
     os._exit(0)
 
 
-def _assistant_text(message: Any) -> str:
-    """Concatenate text content items from an AssistantMessage."""
+def _content_parts(message: Any) -> list[tuple[str, str]]:
+    """An AssistantMessage's speakable content as (openinference-type, text) pairs.
+
+    omp emits reasoning as ``{"type": "thinking", "thinking": "...",
+    "thinkingSignature": "..."}`` content items (verified against omp session
+    JSONL). ``thinkingSignature`` is an opaque provider token, never text, so it
+    is not exported. The ``text`` key is accepted on a thinking block as a
+    fallback because some omp builds key the block body that way. ``toolCall``
+    items are skipped — each becomes a TOOL child span instead.
+    """
     if not isinstance(message, dict):
-        return ""
-    chunks = []
+        return []
+    parts: list[tuple[str, str]] = []
     for item in message.get("content") or []:
-        if isinstance(item, dict) and item.get("type") == "text":
-            text = item.get("text") or ""
-            if text:
-                chunks.append(str(text))
-    return "".join(chunks)
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type == "thinking":
+            kind, text = "reasoning", item.get("thinking") or item.get("text") or ""
+        elif item_type == "text":
+            kind, text = "text", item.get("text") or ""
+        else:
+            continue
+        text = str(text)
+        if text:
+            parts.append((kind, text))
+    return parts
+
+
+def _assistant_text(message: Any) -> str:
+    """Concatenate the visible text items from an AssistantMessage."""
+    return "".join(text for kind, text in _content_parts(message) if kind == "text")
+
+
+def _thinking_text(message: Any) -> str:
+    """Concatenate the reasoning items from an AssistantMessage."""
+    return "".join(text for kind, text in _content_parts(message) if kind == "reasoning")
+
+
+def _output_message_attrs(message: Any) -> dict:
+    """Flatten an AssistantMessage into OpenInference ``llm.output_messages``.
+
+    Phoenix gives a content item whose ``message_content.type`` is
+    ``"reasoning"`` its own collapsible Reasoning row inside the span's Output
+    panel (the deployed Phoenix bundle's message schema keys off exactly that
+    type), which a bare ``llm.reasoning`` attribute never gets. The item order
+    matches omp's content order, so the panel reads thinking-then-answer.
+    """
+    parts = _content_parts(message)
+    if not parts:
+        return {}
+
+    attrs: dict[str, str] = {"llm.output_messages.0.message.role": "assistant"}
+    for index, (kind, text) in enumerate(parts):
+        allowed = env.log_thinking if kind == "reasoning" else env.log_prompts
+        prefix = f"llm.output_messages.0.message.contents.{index}.message_content"
+        attrs[f"{prefix}.type"] = kind
+        attrs[f"{prefix}.text"] = redact_content(allowed, text)
+    return attrs
+
+
+def _assistant_output(message: Any) -> str:
+    """Output value for a span: visible text, or reasoning when the generation
+    produced only thinking + tool calls (so the span still renders —
+    ``llm.reasoning`` alone does not display in Arize).
+
+    omp emits a whitespace-only visible message whenever the model thinks and
+    then calls tools, so blank-after-strip counts as "no visible text".
+    """
+    text = _assistant_text(message)
+    if text.strip():
+        return text
+    return _thinking_text(message) or text
 
 
 def _user_prompt(prompt_field: Any) -> str:
@@ -283,7 +345,8 @@ def _emit_llm_span(state: StateManager, message: Any) -> None:
     start_ms = end_ms - duration_ms if duration_ms else end_ms
 
     model = message.get("model") or ""
-    output_text = _assistant_text(message)
+    output_text = _assistant_output(message)
+    thinking_text = _thinking_text(message)
     attrs: dict[str, Any] = {
         "session.id": state.get("session_id") or "",
         "project.name": state.get("project_name") or "",
@@ -296,6 +359,11 @@ def _emit_llm_span(state: StateManager, message: Any) -> None:
         "input.value": redact_content(env.log_prompts, state.get("current_trace_prompt") or ""),
         "output.value": redact_content(env.log_prompts, output_text),
     }
+    if thinking_text:
+        # Kept for attribute-level search/filtering; the message attributes below
+        # are what render the Reasoning row in the span panel.
+        attrs["llm.reasoning"] = redact_content(env.log_thinking, thinking_text)
+    attrs.update(_output_message_attrs(message))
     if reasoning_tokens:
         attrs["llm.token_count.completion_details.reasoning"] = reasoning_tokens
     if cache_read:
@@ -414,17 +482,21 @@ def _handle_agent_end(input_json: dict) -> None:
     # the final turn_end and this agent_end race on the shared state file:
     # current_final_output may still hold a prior turn's text when this process
     # reads it. agent_end.messages is self-contained and authoritative — the
-    # last assistant message is the run's final answer. Fall back to the state
-    # accumulator only when the payload carries no assistant text.
+    # last assistant message is the run's final answer. When the payload carries
+    # no assistant text at all, use the newest reasoning text, then fall back to
+    # the state accumulator.
     final_output = ""
     messages = input_json.get("messages") or []
     if isinstance(messages, list):
         for message in reversed(messages):
-            if isinstance(message, dict) and message.get("role") == "assistant":
-                text = _assistant_text(message)
-                if text:
-                    final_output = text
-                    break
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            # _assistant_output already falls back to reasoning when the message
+            # has no visible text, so the newest real answer wins in one pass.
+            text = _assistant_output(message)
+            if text.strip():
+                final_output = text
+                break
     if not final_output:
         final_output = state.get("current_final_output") or ""
 
