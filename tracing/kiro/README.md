@@ -15,13 +15,13 @@ Pass `--with-skills` to also symlink the `manage-kiro-tracing` skill into the cu
 Install:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- kiro
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- kiro
 ```
 
 Uninstall:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- uninstall kiro
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- uninstall kiro
 ```
 
 #### Windows (PowerShell)
@@ -29,21 +29,21 @@ curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main
 Install:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat kiro
 ```
 
 Uninstall:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat uninstall kiro
 ```
 
 ### Local setup
 
 ```bash
-git clone https://github.com/Arize-ai/coding-harness-tracing.git
+git clone https://github.com/man715/arize-coding-harness-tracing.git
 cd coding-harness-tracing
 ```
 

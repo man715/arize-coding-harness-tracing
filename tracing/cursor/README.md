@@ -12,7 +12,7 @@ Pass `--with-skills` to also symlink the `manage-cursor-tracing` skill into the 
 Cursor 2.5+ users can install via the Cursor marketplace instead of running `install.sh`. The plugin auto-registers every hook event and lazily bootstraps a dedicated Python venv on first hook fire into `~/.arize/harness/cursor-plugin-venv` (kept separate from the `install.sh`-managed `~/.arize/harness/venv` to avoid pip file-ownership conflicts).
 
 ```text
-/add-plugin Arize-ai/coding-harness-tracing
+/add-plugin man715/arize-coding-harness-tracing
 ```
 
 (Or point at your own team / private marketplace that mirrors this repo.)
@@ -31,13 +31,13 @@ If no backend is configured, hooks fail open (no-op) — they never block Cursor
 Install:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- cursor
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- cursor
 ```
 
 Uninstall:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- uninstall cursor
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- uninstall cursor
 ```
 
 #### Windows (PowerShell)
@@ -45,21 +45,21 @@ curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main
 Install:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat cursor
 ```
 
 Uninstall:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat uninstall cursor
 ```
 
 ### Local setup
 
 ```bash
-git clone https://github.com/Arize-ai/coding-harness-tracing.git
+git clone https://github.com/man715/arize-coding-harness-tracing.git
 cd coding-harness-tracing
 ```
 

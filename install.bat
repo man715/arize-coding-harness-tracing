@@ -8,10 +8,10 @@ REM   install.bat uninstall [harness]
 REM   install.bat update
 
 REM --- Constants ---
-set "REPO_URL=https://github.com/Arize-ai/coding-harness-tracing.git"
+set "REPO_URL=https://github.com/man715/arize-coding-harness-tracing.git"
 if not defined ARIZE_INSTALL_BRANCH set "ARIZE_INSTALL_BRANCH=main"
 set "INSTALL_BRANCH=%ARIZE_INSTALL_BRANCH%"
-set "TARBALL_URL=https://github.com/Arize-ai/coding-harness-tracing/archive/refs/heads/%INSTALL_BRANCH%.tar.gz"
+set "TARBALL_URL=https://github.com/man715/arize-coding-harness-tracing/archive/refs/heads/%INSTALL_BRANCH%.tar.gz"
 set "INSTALL_DIR=%USERPROFILE%\.arize\harness"
 set "VENV_DIR=%INSTALL_DIR%\venv"
 set "VENV_PYTHON=%VENV_DIR%\Scripts\python.exe"
@@ -48,7 +48,7 @@ if /i "%~1"=="--wheel-dir" (
     if not exist "%~2\coding_harness_tracing-*.whl" ( echo [arize] No coding_harness_tracing-*.whl in %~2 >&2 & exit /b 1 )
     shift & shift & goto :parse_args
 )
-if /i "%~1"=="--branch" ( set "INSTALL_BRANCH=%~2" & set "TARBALL_URL=https://github.com/Arize-ai/coding-harness-tracing/archive/refs/heads/%~2.tar.gz" & shift & shift & goto :parse_args )
+if /i "%~1"=="--branch" ( set "INSTALL_BRANCH=%~2" & set "TARBALL_URL=https://github.com/man715/arize-coding-harness-tracing/archive/refs/heads/%~2.tar.gz" & shift & shift & goto :parse_args )
 
 for %%C in (claude codex copilot cursor gemini kiro antigravity opencode omp devin) do if /i "%~1"=="%%C" ( set "COMMAND=%%C" & shift & goto :parse_args )
 if /i "%~1"=="update" ( set "COMMAND=update" & shift & goto :parse_args )

@@ -14,13 +14,13 @@ Pass `--with-skills` to also symlink the `manage-copilot-tracing` skill into the
 Install:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- copilot
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- copilot
 ```
 
 Uninstall:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- uninstall copilot
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- uninstall copilot
 ```
 
 #### Windows (PowerShell)
@@ -28,21 +28,21 @@ curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main
 Install:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat copilot
 ```
 
 Uninstall:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat uninstall copilot
 ```
 
 ### Local setup
 
 ```bash
-git clone https://github.com/Arize-ai/coding-harness-tracing.git
+git clone https://github.com/man715/arize-coding-harness-tracing.git
 cd coding-harness-tracing
 ```
 

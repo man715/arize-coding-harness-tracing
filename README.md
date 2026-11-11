@@ -5,12 +5,12 @@
 >
 > macOS and Linux:
 > ```bash
-> curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- update
+> curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- update
 > ```
 >
 > Windows Command Prompt:
 > ```bat
-> curl.exe -fsSLo "%TEMP%\arize-install.bat" https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat
+> curl.exe -fsSLo "%TEMP%\arize-install.bat" https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat
 > call "%TEMP%\arize-install.bat" update
 > ```
 >
@@ -29,7 +29,7 @@ You need Python 3.11+ and the harness you want to trace. The commands below are 
 ### Claude Code
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- claude
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- claude
 ```
 
 The installer registers hooks in `~/.claude/settings.json`. Start a session with `claude`, or `claude -p "hello"`. Spans for that session show up in the project you chose.
@@ -37,7 +37,7 @@ The installer registers hooks in `~/.claude/settings.json`. Start a session with
 To install from the Claude marketplace instead:
 
 ```bash
-claude plugin marketplace add Arize-ai/coding-harness-tracing
+claude plugin marketplace add man715/arize-coding-harness-tracing
 claude plugin install claude-code-tracing@coding-harness-tracing
 ```
 
@@ -46,7 +46,7 @@ That path skips the wizard, so set backend credentials in `~/.claude/settings.js
 ### Codex
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- codex
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- codex
 ```
 
 The installer registers hooks in `~/.codex/config.toml`. Codex will not run them until you trust them once: start `codex`, run `/hooks`, and approve each `arize-hook-codex-*` entry. Then run a session, for example:
@@ -58,7 +58,7 @@ codex exec "explain what this file does" path/to/file.py
 ### Cursor
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- cursor
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- cursor
 ```
 
 The installer registers hooks in `~/.cursor/hooks.json`, which applies to the Cursor IDE and the Cursor CLI for your user. Use either as usual; agent activity produces spans in the project you chose.
@@ -66,7 +66,7 @@ The installer registers hooks in `~/.cursor/hooks.json`, which applies to the Cu
 Cursor 2.5+ can install from the marketplace instead. In a Cursor agent chat, run:
 
 ```text
-/add-plugin Arize-ai/coding-harness-tracing
+/add-plugin man715/arize-coding-harness-tracing
 ```
 
 The plugin skips the wizard. Run the bundled `manage-cursor-tracing` skill once to write credentials. See [Cursor plugin install](tracing/cursor/README.md#plugin-install).

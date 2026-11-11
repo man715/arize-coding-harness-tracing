@@ -1,0 +1,36 @@
+{
+  "type": "turn_end",
+  "sessionId": "s_thinking_only",
+  "turnIndex": 0,
+  "message": {
+    "role": "assistant",
+    "content": [
+      { "type": "thinking", "thinking": "I should read the file before editing it.", "thinkingSignature": "sig_1" },
+      { "type": "toolCall", "id": "call_read_1", "name": "read", "arguments": { "path": "/tmp/main.py" } }
+    ],
+    "api": "openai-completions",
+    "provider": "sglang",
+    "model": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+    "usage": {
+      "input": 1200,
+      "output": 60,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1260,
+      "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
+    },
+    "stopReason": "tool_use",
+    "timestamp": 8000,
+    "duration": 1500
+  },
+  "toolResults": [
+    {
+      "role": "toolResult",
+      "toolCallId": "call_read_1",
+      "toolName": "read",
+      "content": [{ "type": "text", "text": "def main(): ..." }],
+      "isError": false,
+      "timestamp": 8100
+    }
+  ]
+}

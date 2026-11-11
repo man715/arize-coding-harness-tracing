@@ -55,7 +55,7 @@ For Phoenix, swap the Arize keys for `PHOENIX_ENDPOINT` (and optional `PHOENIX_A
 Install:
 
 ```bash
-claude plugin marketplace add Arize-ai/coding-harness-tracing
+claude plugin marketplace add man715/arize-coding-harness-tracing
 claude plugin install claude-code-tracing@coding-harness-tracing
 ```
 
@@ -63,7 +63,7 @@ Uninstall:
 
 ```bash
 claude plugin uninstall claude-code-tracing@coding-harness-tracing
-claude plugin marketplace remove Arize-ai/coding-harness-tracing
+claude plugin marketplace remove man715/arize-coding-harness-tracing
 ```
 
 ### Remote setup
@@ -73,13 +73,13 @@ claude plugin marketplace remove Arize-ai/coding-harness-tracing
 Install:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- claude
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- claude
 ```
 
 Uninstall:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.sh | bash -s -- uninstall claude
+curl -sSL https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.sh | bash -s -- uninstall claude
 ```
 
 #### Windows (PowerShell)
@@ -87,21 +87,21 @@ curl -sSL https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main
 Install:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat claude
 ```
 
 Uninstall:
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Arize-ai/coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
+iwr -useb https://raw.githubusercontent.com/man715/arize-coding-harness-tracing/main/install.bat -OutFile $env:TEMP\install.bat
 & $env:TEMP\install.bat uninstall claude
 ```
 
 ### Local setup
 
 ```bash
-git clone https://github.com/Arize-ai/coding-harness-tracing.git
+git clone https://github.com/man715/arize-coding-harness-tracing.git
 cd coding-harness-tracing
 ```
 

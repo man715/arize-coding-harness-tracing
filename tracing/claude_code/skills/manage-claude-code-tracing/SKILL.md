@@ -212,7 +212,7 @@ Ask the user: **"Have you already installed this plugin via the Claude Code CLI?
 
 **If no:** Tell them to clone the repo into their project:
 ```bash
-git clone https://github.com/Arize-ai/coding-harness-tracing.git
+git clone https://github.com/man715/arize-coding-harness-tracing.git
 ```
 The plugin path will be `./coding-harness-tracing/tracing/claude_code`.
 
